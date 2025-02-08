@@ -760,8 +760,8 @@ rust_toolchain = rule(
             doc = "The extension for dynamic libraries created from rustc.",
             mandatory = True,
         ),
-        "env": attr.string_dict(
-            doc = "Environment variables to set in actions.",
+        "env": attr.string_list(
+            doc = "List of environment variables to propagate to the rust_toolchain (each as KEY=VALUE).",
         ),
         "exec_triple": attr.string(
             doc = (

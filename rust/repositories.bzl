@@ -155,7 +155,8 @@ def rust_register_toolchains(
         compact_windows_names = _COMPACT_WINDOWS_NAMES,
         toolchain_triples = DEFAULT_TOOLCHAIN_TRIPLES,
         rustfmt_toolchain_triples = DEFAULT_TOOLCHAIN_TRIPLES,
-        extra_toolchain_infos = None):
+        extra_toolchain_infos = None,
+        env = None):
     """Emits a default set of toolchains for Linux, MacOS, and Freebsd
 
     Skip this macro and call the `rust_repository_set` macros directly if you need a compiler for \
@@ -196,6 +197,7 @@ def rust_register_toolchains(
         toolchain_triples (dict[str, str], optional): Mapping of rust target triple -> repository name to create.
         rustfmt_toolchain_triples (dict[str, str], optional): Like toolchain_triples, but for rustfmt toolchains.
         extra_toolchain_infos: (dict[str, dict], optional): Mapping of information about extra toolchains which were created outside of this call, which should be added to the hub repo.
+        env (str, optional): Environment settings to pass to the repository rule.
     """
     if not rustfmt_version:
         if len(versions) == 1:
@@ -267,6 +269,7 @@ def rust_register_toolchains(
             urls = urls,
             versions = versions,
             aliases = aliases,
+            env = env,
         )
 
         for toolchain in _get_toolchain_repositories(
@@ -407,6 +410,10 @@ _RUST_TOOLCHAIN_REPOSITORY_ATTRS = {
         doc = "The version of the tool among \"nightly\", \"beta\", or an exact version.",
         mandatory = True,
     ),
+    "env": attr.string_list(
+        doc = "List of environment variables to pass to the rust toolchain, each formatted as KEY=VALUE.",
+        default = [],
+    ),
 }
 
 def _rust_toolchain_tools_repository_impl(ctx):
@@ -496,6 +503,8 @@ def _rust_toolchain_tools_repository_impl(ctx):
     if "BAZEL_RUST_STDLIB_LINKFLAGS" in ctx.os.environ:
         stdlib_linkflags = ctx.os.environ["BAZEL_RUST_STDLIB_LINKFLAGS"].split(":")
 
+    env = ctx.attr.env
+
     build_components.append(BUILD_for_rust_toolchain(
         name = "rust_toolchain",
         exec_triple = exec_triple,
@@ -509,6 +518,7 @@ def _rust_toolchain_tools_repository_impl(ctx):
         extra_rustc_flags = ctx.attr.extra_rustc_flags,
         extra_exec_rustc_flags = ctx.attr.extra_exec_rustc_flags,
         opt_level = ctx.attr.opt_level if ctx.attr.opt_level else None,
+        env = env,
         version = ctx.attr.version,
     ))
 
@@ -557,6 +567,7 @@ def _toolchain_repository_proxy_impl(repository_ctx):
         toolchain_type = repository_ctx.attr.toolchain_type,
         target_compatible_with = repository_ctx.attr.target_compatible_with,
         exec_compatible_with = repository_ctx.attr.exec_compatible_with,
+        env = repository_ctx.attr.env,
     ))
 
 toolchain_repository_proxy = repository_rule(
@@ -581,6 +592,10 @@ toolchain_repository_proxy = repository_rule(
         "toolchain_type": attr.string(
             doc = "The toolchain type of the toolchain to declare",
             mandatory = True,
+        ),
+        "env": attr.string_dict(
+            doc = "Environment variables to set for the toolchain.",
+            default = {},
         ),
     },
     implementation = _toolchain_repository_proxy_impl,
@@ -612,7 +627,8 @@ def rust_toolchain_repository(
         urls = DEFAULT_STATIC_RUST_URL_TEMPLATES,
         auth = None,
         netrc = None,
-        auth_patterns = None):
+        auth_patterns = None,
+        env = None):
     """Assembles a remote repository for the given toolchain params, produces a proxy repository \
     to contain the toolchain declaration, and registers the toolchains.
 
@@ -642,6 +658,7 @@ def rust_toolchain_repository(
             See [repository_ctx.download](https://docs.bazel.build/versions/main/skylark/lib/repository_ctx.html#download) for more details.
         netrc (str, optional): .netrc file to use for authentication; mirrors the eponymous attribute from http_archive
         auth_patterns (list, optional): A list of patterns to match against urls for which the auth object should be used.
+        env (str, optional): Environment settings to pass to the repository rule.
 
     Returns:
         dict[str, str]: Information about the registerable toolchain created by this rule.
@@ -687,6 +704,7 @@ def rust_toolchain_repository(
         toolchain_type = toolchain_type,
         exec_compatible_with = exec_compatible_with,
         target_compatible_with = target_compatible_with,
+        env = env,
     )
 
     return {
@@ -1017,8 +1035,8 @@ def _get_toolchain_repositories(
         extra_target_triples,
         versions,
         fallback_target_compatible_with,
-        compact_windows_names,
-        aliases):
+        aliases,
+        compact_windows_names):
     """Collect structs represent toolchain repositories matching the given parameters.
 
     Args:
@@ -1118,7 +1136,9 @@ def rust_repository_set(
         exec_compatible_with = None,
         default_target_compatible_with = None,
         aliases = {},
-        compact_windows_names = _COMPACT_WINDOWS_NAMES):
+        compact_windows_names = _COMPACT_WINDOWS_NAMES,
+        env = None,
+    ):
     """Assembles a remote repository for the given toolchain params, produces a proxy repository \
     to contain the toolchain declaration, and registers the toolchains.
 
@@ -1157,6 +1177,7 @@ def rust_repository_set(
         aliases (dict): Replacement names to use for toolchains created by this macro.
         compact_windows_names (bool): Whether or not to produce compact repository names for windows
             toolchains. This is to avoid MAX_PATH issues.
+        env (str, optional): Environment settings to pass to the repository rule.
 
     Returns:
         dict[str, dict]: A dict of informations about all generated toolchains.
@@ -1205,6 +1226,7 @@ def rust_repository_set(
             version = toolchain.channel.version,
             exec_compatible_with = exec_compatible_with,
             target_compatible_with = toolchain.target_constraints,
+            env = env,
         )
         toolchain_labels.append(toolchain_info["toolchain_label"])
         all_toolchain_details[toolchain.name] = toolchain_info
